@@ -3,6 +3,7 @@ package com.hmdp.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.google.common.util.concurrent.RateLimiter;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
@@ -44,7 +45,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedissonClient redissonClient;
     @Resource
-    MQSender mqSender;
+    private MQSender mqSender;
+
+    private RateLimiter rateLimiter = RateLimiter.create(10);
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
     static {
@@ -183,6 +186,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 //    private IVoucherOrderService proxy;
     @Override
     public Result seckillVoucher(Long voucherId){
+
+        if(!rateLimiter.tryAcquire(1000, TimeUnit.MILLISECONDS)){
+            return Result.fail("网络繁忙，请重试！");
+        }
 
         // 1.查询优惠券信息
         SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
